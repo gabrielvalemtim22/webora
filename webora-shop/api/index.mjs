@@ -12,7 +12,7 @@ export default async function handler(req,res){
    body:['GET','HEAD'].includes(req.method)?undefined:JSON.stringify(typeof req.body==='string'?JSON.parse(req.body):req.body||{})
   });
   res.setHeader('Content-Type','application/json');
-  const cookie=r.headers.get('set-cookie');if(cookie)res.setHeader('Set-Cookie',cookie);
+  const cookies=typeof r.headers.getSetCookie==='function'?r.headers.getSetCookie():[r.headers.get('set-cookie')||''];const cookie=cookies.find(c=>c.startsWith('wb_access='));if(cookie)res.setHeader('Set-Cookie',cookie.split(/,\s*__cf_bm=/)[0]);
   return res.status(r.status).send(await r.text());
  }catch{return res.status(502).json({error:'Não foi possível conectar. Tente novamente.'});}
 }
