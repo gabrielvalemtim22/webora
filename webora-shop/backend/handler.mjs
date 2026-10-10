@@ -1,6 +1,7 @@
 import {randomBytes,createHash}from'node:crypto';
 import QRCode from'npm:qrcode@1.5.4';
 import{pixPayload}from'./pix.mjs';
+async function qrData(pix){const svg=await QRCode.toString(pix,{type:'svg',width:320,margin:2});return 'data:image/svg+xml;base64,'+btoa(svg);}
 const hash=s=>createHash('sha256').update(s).digest('hex');
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function fail(message,status=400){throw Object.assign(Error(message),{status});}
@@ -42,11 +43,11 @@ export default async function handler(req,res){res.setHeader('Cache-Control','no
    const order=await db('rpc/create_shop_order',{method:'POST',body:{p_access_hash:hash(token),p_customer:c,p_items:body.items,p_seller:seller,p_method:body.method}});
    const pix=body.method==='pix'?pixPayload({key:s.pix_key,amount:order.total,name:s.pix_name||'WEBORA',city:s.pix_city||'SAO PAULO',txid:'WB'+order.number}):null;
    if(pix)await db('orders?id=eq.'+order.id,{method:'PATCH',body:{pix_payload:pix}});
-   return res.status(200).json({order,token,card_url:cardUrl,pix,qr:pix?await QRCode.toDataURL(pix,{width:320,margin:2}):null});
+   return res.status(200).json({order,token,card_url:cardUrl,pix,qr:pix?await qrData(pix):null});
   }
   if(['order','messages','send-message','receipt','payment-details'].includes(action)){
    const o=await orderFor(req,body.order_id||req.query.id,body);
-   if(action==='payment-details'){if(!o.pix_payload)fail('Pix não disponível para este pedido');return res.status(200).json({order:publicOrder(o),pix:o.pix_payload,qr:await QRCode.toDataURL(o.pix_payload,{width:320,margin:2})});}
+   if(action==='payment-details'){if(!o.pix_payload)fail('Pix não disponível para este pedido');return res.status(200).json({order:publicOrder(o),pix:o.pix_payload,qr:await qrData(o.pix_payload)});}
    if(action==='order')return res.status(200).json(publicOrder(o));
    if(action==='messages')return res.status(200).json(await db('messages?order_id=eq.'+o.id+'&order=created_at.asc&limit=200'));
    if(action==='send-message'){const text=String(body.body||'').trim();if(!text||text.length>2000)fail('Mensagem inválida');await db('messages',{method:'POST',body:{order_id:o.id,sender:'customer',body:text}});return res.status(200).json({ok:true});}
